@@ -1,0 +1,73 @@
+#!/usr/bin/env perl
+
+use warnings;
+use strict;
+use Sys::Hostname;
+
+my $domain = hostname;
+my @ports = qw( 443 465 993 995 2083 2096 );
+
+__PACKAGE__->run();
+exit;
+
+sub run {
+    my $self = shift;
+    print "\n";
+
+    # ret codes 256 = should fail || 0 = should succeed
+
+    # Poodle
+    $self->__openssl__({ 'ssl3_check'   => '-ssl3' },
+                       { 'expected_ret' => 256 });
+    # Beast
+    $self->__openssl__({ 'RC4_check'    => '-cipher RC4-SHA' },
+                       { 'expected_ret' => 256 });
+    # PCI DSS 3.1
+    $self->__openssl__({ 'tls1.0_check' => '-tls1' },
+                       { 'expected_ret' => 256 });
+
+    # Logjam
+    $self->__openssl__({ 'EDH_check'    => '-cipher EDH' },
+                       { 'expected_ret' => 0 });
+    $self->__openssl__({ 'EXP_check'    => '-cipher EXP' },
+                       { 'expected_ret' => 256 });
+    $self->__openssl__({ 'DH_key_check'    => '-cipher EDH' },
+                       { 'expected_ret' => 0 });
+
+    print "\n";
+    return;
+}
+
+sub __openssl__ {
+    my $self = shift;
+    my $h = shift;
+    my $h2 = shift || { expected_ret => 0 };
+    my ($test, $opts) = each(%$h);
+    my $red = "\033[0;31m";
+    my $green = "\033[0;32m";
+    my $e = "\033[0m";
+    my $grade;
+
+    foreach my $p (@ports) {
+        if ($h->{'DH_key_check'}) {
+            my $dhkey = 0;
+            my @res = `openssl s_client -connect $domain:$p $opts 2>/dev/null </dev/null | grep \"Server Temp Key\"`;
+            do { $dhkey = $1 if $_ =~ m/Temp\ Key:\ DH\,\ (\d+)\ bits/ } foreach @res;
+            $grade = do {
+                # DH Group key size under 2048 is now considered weak
+                if ($dhkey >= 2048) {"$green PASS $e";}
+                else                {"$red FAIL $e";}
+            };
+        }
+        else {
+            my $cmd = "openssl s_client -connect $domain:$p $opts &>/dev/null </dev/null";
+            my $ret = system($cmd);
+            $grade = do {
+                if ($ret == $h2->{'expected_ret'}) {"$green PASS $e";}
+                else                               {"$red FAIL $e";}
+            };
+        }
+        printf "%-20s %4g %13s %4s\n", $domain, $p, $test, $grade;
+    }
+    return;
+}

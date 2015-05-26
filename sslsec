@@ -18,17 +18,24 @@ sub run {
     # Poodle
     $self->__openssl__({ 'ssl3_check'   => '-ssl3' },
                        { 'expected_ret' => 256 });
+                       
     # Beast
     $self->__openssl__({ 'RC4_check'    => '-cipher RC4-SHA' },
                        { 'expected_ret' => 256 });
+                       
     # PCI DSS 3.1
     $self->__openssl__({ 'tls1.0_check' => '-tls1' },
                        { 'expected_ret' => 256 });
+                       
     # Logjam
     $self->__openssl__({ 'EDH_check'    => '-cipher EDH' });
     $self->__openssl__({ 'DH_key_check' => '-cipher EDH' });
     $self->__openssl__({ 'EXP_check'    => '-cipher EXP' },
                        { 'expected_ret' => 256 });
+                       
+    # Perfect Forward Secrecy
+    $self->__openssl__({ 'PFS_check'    => '-cipher ECDHE-RSA-RC4-SHA' });
+    
     print "\n";
     return;
 }

@@ -13,7 +13,6 @@ exit;
 sub run {
     my $self = shift;
     print "\n";
-
     # ret codes 256 = should fail || 0 = should succeed
 
     # Poodle
@@ -25,15 +24,11 @@ sub run {
     # PCI DSS 3.1
     $self->__openssl__({ 'tls1.0_check' => '-tls1' },
                        { 'expected_ret' => 256 });
-
     # Logjam
-    $self->__openssl__({ 'EDH_check'    => '-cipher EDH' },
-                       { 'expected_ret' => 0 });
+    $self->__openssl__({ 'EDH_check'    => '-cipher EDH' });
+    $self->__openssl__({ 'DH_key_check' => '-cipher EDH' });
     $self->__openssl__({ 'EXP_check'    => '-cipher EXP' },
                        { 'expected_ret' => 256 });
-    $self->__openssl__({ 'DH_key_check'    => '-cipher EDH' },
-                       { 'expected_ret' => 0 });
-
     print "\n";
     return;
 }
@@ -50,9 +45,7 @@ sub __openssl__ {
 
     foreach my $p (@ports) {
         if ($h->{'DH_key_check'}) {
-            my $dhkey = 0;
-            my @res = `openssl s_client -connect $domain:$p $opts 2>/dev/null </dev/null | grep \"Server Temp Key\"`;
-            do { $dhkey = $1 if $_ =~ m/Temp\ Key:\ DH\,\ (\d+)\ bits/ } foreach @res;
+            my $dhkey = $self->__dhgroupcheck__($domain, $p, $opts) || 0;
             $grade = do {
                 # DH Group key size under 2048 is now considered weak
                 if ($dhkey >= 2048) {"$green PASS $e";}
@@ -70,4 +63,13 @@ sub __openssl__ {
         printf "%-20s %4g %13s %4s\n", $domain, $p, $test, $grade;
     }
     return;
+}
+
+sub __dhgroupcheck__ {
+    my $self = shift;
+    my($domain, $p, $opts) = @_;
+    my $dhkey = 0;
+    my @res = `openssl s_client -connect $domain:$p $opts 2>/dev/null </dev/null | grep \"Server Temp Key\"`;
+    do { $dhkey = $1 if $_ =~ m/Temp\ Key:\ DH\,\ (\d+)\ bits/ } foreach @res;
+    return $dhkey;
 }

@@ -5,7 +5,7 @@ use strict;
 use Sys::Hostname;
 
 my $domain = hostname;
-my @ports = qw( 443 465 993 995 2083 2096 );
+my @ports = qw( 443 465 993 995 2078 2083 2087 2096 );
 
 __PACKAGE__->run();
 exit;

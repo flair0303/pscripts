@@ -29,9 +29,11 @@ sub main {
 
             my $ver = $self->ver_check($doc_root) || 0.0;
             say "$wpconfig : version = $ver" if $debug;
+            my $version = 0;
+            $version = $1 if $ver =~ m/(\d\.\d)\./;
 
             # version 3.7 or higher support auto updates
-            next if $ver < 3.7;
+            next if $version < 3.7;
 
             $self->wp_check($wpconfig, $ver);
             $counter++;
@@ -79,11 +81,11 @@ sub wp_check {
     close $fh;
 
     if (grep(m/WP_AUTO_UPDATE_CORE.*true/, @contents)) {
-        printf "%-90s %-25s %4g\n", "$wpconfig", colored("Core updates enabled    ", 'green'), "$ver";
+        printf "%-85s %-25s %7s\n", "$wpconfig", colored("Core updates enabled    ", 'green'), "$ver";
         $updates_enabled++;
     }
     else {
-        printf "%-90s %-25s %4g\n", "$wpconfig", colored("Core updates not enabled", 'red'), "$ver";
+        printf "%-85s %-25s %7s\n", "$wpconfig", colored("Core updates not enabled", 'red'), "$ver";
         $updates_supported_counter++;
     }
 
@@ -98,8 +100,8 @@ sub ver_check {
     say $cmd if $debug;
     chomp(my $ver = qx{$cmd});
 
-    my $version = $1 if $ver =~ m/(\d\.\d)\./ || 0.0;
-    return $version;
+    #my $version = $1 if $ver =~ m/(\d\.\d)\./ || 0.0;
+    return $ver;
 }
 
 __END__;

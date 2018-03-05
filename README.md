@@ -1,4 +1,5 @@
 pscripts
 ========
 
-Collection of assorted perl scripts
+Collection of assorted perl scripts . Enjoy!
+

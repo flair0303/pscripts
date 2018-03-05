@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+###
+# This script was orginally written by mwilson. I've tweaked the logic to help assist in PSO-5090
+# Highlights include:
+# - checks for httpd processes bigger then $mem_threshold every 10sec
+# - Records process tree, tcp connections and open files associated with pid
+# - SIGTERM's process when done with data dump
+# - This version leverages the sys-snap deamon found in our custom repo
+# ###
+use strict;
+use Proc::PID::File;
+die "Already running!" if Proc::PID::File->running();
+
+chomp(my $timestamp = `date`);
+my $mem_threshold  = 1048576; #1G
+#my $mem_threshold = 512000;
+my $log_file = "/var/log/httpd_watcher.log";
+
+open (LOG, ">>$log_file");
+print LOG "="x80 ."\nhttpd_watcher started $timestamp; mem_threshold=$mem_threshold;\n". "="x80 ."\n";
+close(LOG);
+
+while (1) {
+  my @possible_culprits = ();
+  my $killed = 0;
+  my %open_files = ();
+
+  chomp($timestamp = `date`); #this needs to reset each iteration
+
+  open(LOG, ">>$log_file");
+
+  my @netstat = split(/\n/, `netstat -pnt | sed 's/[:\\/]/ /g' | awk '{print \$9,\$6}'`);
+
+  # The meat
+  foreach my $pid_and_mem(`ps -e u | grep httpd | awk '{print \$2,\$6}'`) { #get pid/rss instead.
+    my ($pid, $mem) = split (/ /, $pid_and_mem);
+    if (sprintf("%d", $mem) >= $mem_threshold) {
+      #my $ps = `ps fawwux`;
+      my $ps = `/root/bin/sys-snap -EN --sort mem current`;
+      print LOG "-"x80 ."\n$timestamp\n";
+      print LOG "Memory Limit reached for $pid - Process Snapshot: $ps\n";
+      `kill -9 $pid`;
+      $killed = $pid;
+    }
+  }
+
+  print LOG "\n$timestamp -- killed pid $killed\n" if $killed;
+  close(LOG);
+  sleep(10);
+}

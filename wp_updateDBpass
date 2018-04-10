@@ -1,0 +1,96 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use v5.10;
+use YAML qw{ LoadFile };
+use Data::Dumper;
+use Getopt::Long;
+
+my $debug = '';
+my $db = '';
+my $revert = '';
+
+GetOptions ("debug"   => \$debug,
+            "db=s"    => \$db,
+            "revert"  => \$revert);
+
+__PACKAGE__->main();
+exit;
+
+sub main {
+    my $self = shift;
+
+    die "Database not provided :$!" if ! $db;
+
+    # Get cpanel user
+    #$db = 'billy_svr_word1';
+    my $cpuser = $1 if $db =~ m/^([a-z0-9]+)\_/;
+
+    # Get $db.options table
+    my $wp_options = $self->get_wp_options();
+    say "wp_options = $wp_options" if $debug;
+
+    # Get wordpress siteurl
+    my($siteurl, $dom, $path) = $self->get_siteurl($wp_options);
+    say "cpuser = $cpuser | siteurl = $siteurl | domain = $dom | path = $path" if $debug;
+
+    # Get docroot using cpanel api
+    my $docroot = $self->get_docroot($cpuser, $dom);
+    say "docroot = $docroot" if $debug;
+
+
+    return;
+}
+
+sub get_wp_options {
+    my $self = shift;
+
+    my $cmd = qq{mysql -Be 'SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = "$db" AND TABLE_NAME LIKE "%_options";' | tail -1};
+    say $cmd if $debug;
+    chomp(my $wp_options_table = qx{$cmd});
+    #die "Unable to locate wp_options table :$!" unless $wp_options_table;
+
+    return $wp_options_table;
+}
+
+sub get_siteurl {
+    my $self = shift;
+    my $wp_options = shift;
+    my $dom = '';
+    my $path = '';
+
+    my $cmd = qq{mysql -Be "select option_value from $db.$wp_options where option_name='siteurl';" | tail -1};
+    say $cmd if $debug;
+    chomp(my $siteurl = qx{$cmd});
+    #die "Unable to obtain site url :$!" unless $siteurl;
+    #$siteurl = 'http://www.zyzztest2.neT/wp/billybo';
+    $dom = $1 if $siteurl =~ m{https?://(?:www\.)?(.+)$};
+    if ( $dom =~ m{(.+\.[a-z]+)(/.*)}i) {
+        $dom = $1;
+        $path = $2;
+    }
+    #say "siteurl = $siteurl | domain = $dom | path = $path" if $debug;
+    return $siteurl, $dom, $path;
+}
+
+sub get_docroot {
+    my $self = shift;
+    my $cpuser = shift;
+    my $dom = shift;
+    my $tmpfile = 'docroot.yaml';
+
+    my $cmd = qq{cpapi2 --user=$cpuser DomainLookup getdocroot domain=$dom > $tmpfile};
+    say $cmd if $debug;
+    system($cmd);
+
+    my $getdocroot = LoadFile($tmpfile) or warn $!;
+    my $d = $getdocroot->{'cpanelresult'}{'data'}[0];
+    say $d->{'docroot'} if $debug;
+
+    unlink $tmpfile or warn "Could not unlink $tmpfile: $!";
+
+    return $d->{'docroot'};
+}
+
+__END__;
